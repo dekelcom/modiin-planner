@@ -7,7 +7,6 @@ import {
   CAL_END_H,
   CAL_START_H,
   findFreeSlot,
-  firstDayWithData,
   hasOverlap,
   removeSlotAt,
   setSlotAt,
@@ -22,9 +21,7 @@ import HallCard, { type ActiveSlot } from './HallCard';
 export default function AdminEditor({ initialData }: { initialData: ScheduleState }) {
   const router = useRouter();
   const [schedule, setSchedule] = useState<ScheduleState>(initialData);
-  const [selectedDays, setSelectedDays] = useState<Record<string, DayName>>(() =>
-    Object.fromEntries(initialData.halls.map((h) => [h.id, firstDayWithData(h)]))
-  );
+  const [selectedHallId, setSelectedHallId] = useState<string | undefined>(initialData.halls[0]?.id);
   const [activeByHall, setActiveByHall] = useState<Record<string, ActiveSlot | null>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,11 +84,18 @@ export default function AdminEditor({ initialData }: { initialData: ScheduleStat
     setActiveByHall((prev) => ({ ...prev, [hallId]: { day, index, isNew: false, original: { ...slot } } }));
   }
 
-  function selectDay(hallId: string, day: DayName) {
-    const cleaned = cleanupHallActive(schedule, hallId);
-    setSchedule(cleaned);
-    setActiveByHall((prev) => ({ ...prev, [hallId]: null }));
-    setSelectedDays((prev) => ({ ...prev, [hallId]: day }));
+  function selectHallTab(hallId: string) {
+    // Switching halls should not leave a half-created empty slot behind in
+    // whichever hall/day was being edited.
+    if (selectedHallId) {
+      const prevId = selectedHallId;
+      const prevActive = getActive(prevId);
+      setSchedule(cleanupHallActive(schedule, prevId));
+      if (prevActive?.isNew) {
+        setActiveByHall((prev) => ({ ...prev, [prevId]: null }));
+      }
+    }
+    setSelectedHallId(hallId);
   }
 
   function cancelActive(hallId: string) {
@@ -247,36 +251,49 @@ export default function AdminEditor({ initialData }: { initialData: ScheduleStat
         </div>
       </div>
 
-      {schedule.halls.map((hall) => (
-        <HallCard
-          key={hall.id}
-          hall={hall}
-          weekStart={schedule.weekStart}
-          selectedDay={selectedDays[hall.id]}
-          active={getActive(hall.id)}
-          onSelectDay={(day) => selectDay(hall.id, day)}
-          onToggleClosed={() => toggleClosed(hall.id)}
-          onClosedNoteChange={(v) => setClosedNote(hall.id, v)}
-          onAnnouncementChange={(v) => setAnnouncement(hall.id, v)}
-          onToggleDayClosed={() => toggleDayClosed(hall.id, selectedDays[hall.id])}
-          onDayClosureNoteChange={(v) => setDayClosureNote(hall.id, selectedDays[hall.id], v)}
-          onAddSlot={() => addSlot(hall.id, selectedDays[hall.id])}
-          onSelectSlot={(index) => selectSlot(hall.id, selectedDays[hall.id], index)}
-          onDeleteSlot={(index) => deleteSlot(hall.id, selectedDays[hall.id], index)}
-          onCreateSlot={(startMin, endMin) => createSlotFromGrid(hall.id, selectedDays[hall.id], startMin, endMin)}
-          onCommitTime={(field, value) => commitTime(hall.id, field, value)}
-          onSport={() => {
-            const active = getActive(hall.id);
-            if (!active) return;
-            const slot = (hall.days[active.day] ?? [])[active.index];
-            if (!slot) return;
-            updateActiveSlot(hall.id, { sport: slot.sport === '🏀' ? '🏐' : '🏀' });
-          }}
-          onTitle={(value) => updateActiveSlot(hall.id, { title: value })}
-          onCancel={() => cancelActive(hall.id)}
-          onDone={() => doneActive(hall.id)}
-        />
-      ))}
+      <nav className="tabs-nav hall-tabs-nav">
+        {schedule.halls.map((hall) => (
+          <button
+            key={hall.id}
+            type="button"
+            data-active={selectedHallId === hall.id}
+            onClick={() => selectHallTab(hall.id)}
+          >
+            {hall.icon} {hall.name}
+          </button>
+        ))}
+      </nav>
+
+      {schedule.halls
+        .filter((hall) => hall.id === selectedHallId)
+        .map((hall) => (
+          <HallCard
+            key={hall.id}
+            hall={hall}
+            weekStart={schedule.weekStart}
+            active={getActive(hall.id)}
+            onToggleClosed={() => toggleClosed(hall.id)}
+            onClosedNoteChange={(v) => setClosedNote(hall.id, v)}
+            onAnnouncementChange={(v) => setAnnouncement(hall.id, v)}
+            onToggleDayClosed={(day) => toggleDayClosed(hall.id, day)}
+            onDayClosureNoteChange={(day, v) => setDayClosureNote(hall.id, day, v)}
+            onAddSlot={(day) => addSlot(hall.id, day)}
+            onSelectSlot={(day, index) => selectSlot(hall.id, day, index)}
+            onDeleteSlot={(day, index) => deleteSlot(hall.id, day, index)}
+            onCreateSlot={(day, startMin, endMin) => createSlotFromGrid(hall.id, day, startMin, endMin)}
+            onCommitTime={(field, value) => commitTime(hall.id, field, value)}
+            onSport={() => {
+              const active = getActive(hall.id);
+              if (!active) return;
+              const slot = (hall.days[active.day] ?? [])[active.index];
+              if (!slot) return;
+              updateActiveSlot(hall.id, { sport: slot.sport === '🏀' ? '🏐' : '🏀' });
+            }}
+            onTitle={(value) => updateActiveSlot(hall.id, { title: value })}
+            onCancel={() => cancelActive(hall.id)}
+            onDone={() => doneActive(hall.id)}
+          />
+        ))}
 
       <div className="save-bar">
         <span className={`save-status${saveMsg && saveMsg !== 'נשמר ✓' ? ' err' : ''}`}>

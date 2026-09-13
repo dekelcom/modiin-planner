@@ -1,9 +1,9 @@
 'use client';
 
 import type { DayName, Hall, Slot } from '@/lib/types';
-import DayTabs from './DayTabs';
-import CalendarGrid from './CalendarGrid';
-import SlotEditorPanel from './SlotEditorPanel';
+import { DAY_ORDER } from '@/lib/types';
+import { dateForDay, fmtDM } from '@/lib/scheduleLogic';
+import DaySection from './DaySection';
 
 export interface ActiveSlot {
   day: DayName;
@@ -15,9 +15,7 @@ export interface ActiveSlot {
 export default function HallCard({
   hall,
   weekStart,
-  selectedDay,
   active,
-  onSelectDay,
   onToggleClosed,
   onClosedNoteChange,
   onAnnouncementChange,
@@ -35,28 +33,22 @@ export default function HallCard({
 }: {
   hall: Hall;
   weekStart: string;
-  selectedDay: DayName;
   active: ActiveSlot | null;
-  onSelectDay: (day: DayName) => void;
   onToggleClosed: () => void;
   onClosedNoteChange: (v: string) => void;
   onAnnouncementChange: (v: string) => void;
-  onToggleDayClosed: () => void;
-  onDayClosureNoteChange: (v: string) => void;
-  onAddSlot: () => void;
-  onSelectSlot: (index: number) => void;
-  onDeleteSlot: (index: number) => void;
-  onCreateSlot: (startMin: number, endMin: number) => void;
+  onToggleDayClosed: (day: DayName) => void;
+  onDayClosureNoteChange: (day: DayName, v: string) => void;
+  onAddSlot: (day: DayName) => void;
+  onSelectSlot: (day: DayName, index: number) => void;
+  onDeleteSlot: (day: DayName, index: number) => void;
+  onCreateSlot: (day: DayName, startMin: number, endMin: number) => void;
   onCommitTime: (field: 's' | 'e', value: string) => string | null;
   onSport: () => void;
   onTitle: (value: string) => void;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const dayClosed = hall.dayClosures[selectedDay] !== undefined;
-  const slots = hall.days[selectedDay] ?? [];
-  const activeSlot = active ? slots[active.index] : undefined;
-
   return (
     <div className="hall-card">
       <div className="hall-head">
@@ -80,72 +72,45 @@ export default function HallCard({
         />
       </div>
 
-      {hall.closed && (
+      {hall.closed ? (
         <div className="warn-box">
           <div className="wtitle">🔧 הודעת סגירה</div>
           <textarea value={hall.closedNote} onChange={(e) => onClosedNoteChange(e.target.value)} />
         </div>
-      )}
-
-      <DayTabs hall={hall} weekStart={weekStart} selectedDay={selectedDay} onSelect={onSelectDay} />
-
-      <div className="cal-shell">
-        <div className="day-status-row">
-          <button type="button" className="toggle-day-closed" aria-pressed={dayClosed} onClick={onToggleDayClosed}>
-            {dayClosed ? `🔒 יום ${selectedDay} סגור זמנית` : `סמן את יום ${selectedDay} כסגור`}
-          </button>
-        </div>
-
-        {dayClosed ? (
-          <div className="warn-box">
-            <div className="wtitle">🔒 הודעת סגירה ליום {selectedDay}</div>
-            <textarea
-              value={hall.dayClosures[selectedDay] ?? ''}
-              placeholder="לדוגמה: האולם סגור לאימונים - התקנת גופי תאורה"
-              onChange={(e) => onDayClosureNoteChange(e.target.value)}
-            />
+      ) : (
+        <div className="week-days">
+          <div className="cal-hint">
+            לחיצה על משבצת פנויה מוסיפה פעילות · לחיצה על פעילות קיימת פותחת אותה לעריכה · ה־✕ מוחק מיד
           </div>
-        ) : (
-          <>
-            <div className="cal-hint">
-              לחיצה על משבצת פנויה מוסיפה פעילות · לחיצה על פעילות קיימת פותחת אותה לעריכה · ה־✕ מוחק מיד
-            </div>
-            <div className="cal-actions">
-              <button type="button" className="cal-add-btn" onClick={onAddSlot}>
-                + הוספת פעילות
-              </button>
-            </div>
-
-            {active && activeSlot ? (
-              <SlotEditorPanel
-                key={`${selectedDay}-${active.index}`}
-                day={selectedDay}
-                slot={activeSlot}
-                isNew={active.isNew}
+          {DAY_ORDER.map((day) => {
+            const dayClosed = hall.dayClosures[day] !== undefined;
+            const daySlots = hall.days[day] ?? [];
+            const dayActive = active && active.day === day ? active : null;
+            return (
+              <DaySection
+                key={day}
+                day={day}
+                date={fmtDM(dateForDay(weekStart, day))}
+                slots={daySlots}
+                dayClosed={dayClosed}
+                dayClosureNote={hall.dayClosures[day] ?? ''}
+                active={dayActive}
+                onToggleDayClosed={() => onToggleDayClosed(day)}
+                onDayClosureNoteChange={(v) => onDayClosureNoteChange(day, v)}
+                onAddSlot={() => onAddSlot(day)}
+                onSelectSlot={(index) => onSelectSlot(day, index)}
+                onDeleteSlot={(index) => onDeleteSlot(day, index)}
+                onCreateSlot={(startMin, endMin) => onCreateSlot(day, startMin, endMin)}
                 onCommitTime={onCommitTime}
                 onSport={onSport}
                 onTitle={onTitle}
-                onDelete={() => onDeleteSlot(active.index)}
                 onCancel={onCancel}
                 onDone={onDone}
               />
-            ) : (
-              <div className="se-empty">
-                לא נבחרה פעילות — לחצו על &quot;+ הוספת פעילות&quot;, על משבצת פנויה בלוח, או על פעילות קיימת כדי
-                לערוך.
-              </div>
-            )}
-
-            <CalendarGrid
-              slots={slots}
-              activeIndex={active ? active.index : null}
-              onCreate={onCreateSlot}
-              onSelect={onSelectSlot}
-              onDelete={onDeleteSlot}
-            />
-          </>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
