@@ -158,18 +158,24 @@ function PosterBlock({ state, nameLine, range }: { state: ScheduleState; nameLin
   const cardRef = useRef<HTMLDivElement>(null);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shareMsg, setShareMsg] = useState('');
   const days = posterDays(state.halls);
   const announcements = announcementLines(state.halls);
 
+  async function renderCanvas(): Promise<HTMLCanvasElement | null> {
+    if (!cardRef.current) return null;
+    const { default: html2canvas } = await import('html2canvas');
+    return html2canvas(cardRef.current, { scale: 2, backgroundColor: '#ffffff' });
+  }
+
   async function makeImage() {
-    if (!cardRef.current) return;
     setBusy(true);
+    setShareMsg('');
     try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(cardRef.current, { scale: 2, backgroundColor: '#ffffff' });
-      setImgSrc(canvas.toDataURL('image/jpeg', 0.92));
+      const canvas = await renderCanvas();
+      if (canvas) setImgSrc(canvas.toDataURL('image/jpeg', 0.92));
     } catch {
-      // ignore — button label communicates failure below
+      setShareMsg('לא הצלחנו להכין תמונה — נסו שוב.');
     } finally {
       setBusy(false);
     }
@@ -181,6 +187,42 @@ function PosterBlock({ state, nameLine, range }: { state: ScheduleState; nameLin
     a.href = imgSrc;
     a.download = `לוח-פעילות-${range.replace(/[^\d–]/g, '')}.jpg`;
     a.click();
+  }
+
+  async function shareToWhatsapp() {
+    setBusy(true);
+    setShareMsg('');
+    try {
+      const canvas = await renderCanvas();
+      if (!canvas) throw new Error('no-canvas');
+      setImgSrc(canvas.toDataURL('image/jpeg', 0.92));
+
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      if (!blob) throw new Error('no-blob');
+      const file = new File([blob], 'לוח-פעילות.jpg', { type: 'image/jpeg' });
+      const caption = `📋 לוח פעילות אולמות – ${nameLine} | ${range}`;
+
+      const nav = navigator as Navigator & {
+        canShare?: (data?: ShareData) => boolean;
+        share?: (data: ShareData) => Promise<void>;
+      };
+
+      if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
+        await nav.share({ files: [file], title: 'לוח פעילות אולמות', text: caption });
+      } else {
+        // This browser can't attach a file to a share sheet — open WhatsApp
+        // with the caption text ready, and leave the image below so it can
+        // be saved and attached to the message by hand.
+        window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, '_blank', 'noopener,noreferrer');
+        setShareMsg('הדפדפן הזה לא תומך בצירוף תמונה ישירות — פתחנו את וואטסאפ עם הכיתוב, והתמונה מוכנה למטה לשמירה ולצירוף ידני.');
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setShareMsg('השיתוף לא הצליח — אפשר להשתמש ב"הורדת התמונה" ולשתף ידנית.');
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -275,14 +317,18 @@ function PosterBlock({ state, nameLine, range }: { state: ScheduleState; nameLin
       </div>
 
       <div className="poster-share">
-        <button className="poster-share-btn" type="button" onClick={makeImage} disabled={busy}>
-          {busy ? 'מכין תמונה…' : '📤 הפוך לתמונה'}
+        <button className="poster-share-btn primary" type="button" onClick={shareToWhatsapp} disabled={busy}>
+          {busy ? 'מכין…' : '💬 פרסם בוואטסאפ'}
         </button>
+        <button className="poster-share-btn ghost" type="button" onClick={makeImage} disabled={busy}>
+          {busy ? 'מכין תמונה…' : '🖼️ הצג תמונה לשמירה'}
+        </button>
+        {shareMsg && <p className="poster-share-msg">{shareMsg}</p>}
         {imgSrc && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- runtime data: URI, not a static asset */}
             <img src={imgSrc} alt="תמונת הפוסטר" style={{ maxWidth: '100%', borderRadius: 12, border: '1px solid var(--border)' }} />
-            <button className="poster-share-btn" type="button" onClick={downloadImage}>
+            <button className="poster-share-btn ghost" type="button" onClick={downloadImage}>
               ⬇️ הורדת התמונה
             </button>
           </>
