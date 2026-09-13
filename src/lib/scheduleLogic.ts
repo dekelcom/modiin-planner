@@ -127,7 +127,6 @@ export const HALL_COLORS: Record<string, string> = {
   beerot: '#2F6FBD',
   achisamech: '#2E8B57',
   nachshon: '#6C4AB6',
-  kibbutz: '#B5762E',
 };
 export const POSTER_COLORS = ['#2F6FBD', '#2E8B57', '#6C4AB6', '#B5762E'];
 
