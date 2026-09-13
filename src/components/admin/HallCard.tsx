@@ -2,8 +2,8 @@
 
 import type { DayName, Hall, Slot } from '@/lib/types';
 import { DAY_ORDER } from '@/lib/types';
-import { dateForDay, fmtDM } from '@/lib/scheduleLogic';
-import DaySection from './DaySection';
+import SlotEditorPanel from './SlotEditorPanel';
+import WeekGrid from './WeekGrid';
 
 export interface ActiveSlot {
   day: DayName;
@@ -21,7 +21,6 @@ export default function HallCard({
   onAnnouncementChange,
   onToggleDayClosed,
   onDayClosureNoteChange,
-  onAddSlot,
   onSelectSlot,
   onDeleteSlot,
   onCreateSlot,
@@ -39,7 +38,6 @@ export default function HallCard({
   onAnnouncementChange: (v: string) => void;
   onToggleDayClosed: (day: DayName) => void;
   onDayClosureNoteChange: (day: DayName, v: string) => void;
-  onAddSlot: (day: DayName) => void;
   onSelectSlot: (day: DayName, index: number) => void;
   onDeleteSlot: (day: DayName, index: number) => void;
   onCreateSlot: (day: DayName, startMin: number, endMin: number) => void;
@@ -49,6 +47,9 @@ export default function HallCard({
   onCancel: () => void;
   onDone: () => void;
 }) {
+  const activeSlot = active ? (hall.days[active.day] ?? [])[active.index] : undefined;
+  const closedDays = DAY_ORDER.filter((day) => hall.dayClosures[day] !== undefined);
+
   return (
     <div className="hall-card">
       <div className="hall-head">
@@ -78,37 +79,51 @@ export default function HallCard({
           <textarea value={hall.closedNote} onChange={(e) => onClosedNoteChange(e.target.value)} />
         </div>
       ) : (
-        <div className="week-days">
+        <div className="week-shell">
           <div className="cal-hint">
-            לחיצה על משבצת פנויה מוסיפה פעילות · לחיצה על פעילות קיימת פותחת אותה לעריכה · ה־✕ מוחק מיד
+            לחיצה על משבצת פנויה ביום הרצוי מוסיפה פעילות · לחיצה על פעילות קיימת פותחת אותה לעריכה · 🔒 ליד יום
+            סוגר אותו · ה־✕ מוחק מיד
           </div>
-          {DAY_ORDER.map((day) => {
-            const dayClosed = hall.dayClosures[day] !== undefined;
-            const daySlots = hall.days[day] ?? [];
-            const dayActive = active && active.day === day ? active : null;
-            return (
-              <DaySection
-                key={day}
-                day={day}
-                date={fmtDM(dateForDay(weekStart, day))}
-                slots={daySlots}
-                dayClosed={dayClosed}
-                dayClosureNote={hall.dayClosures[day] ?? ''}
-                active={dayActive}
-                onToggleDayClosed={() => onToggleDayClosed(day)}
-                onDayClosureNoteChange={(v) => onDayClosureNoteChange(day, v)}
-                onAddSlot={() => onAddSlot(day)}
-                onSelectSlot={(index) => onSelectSlot(day, index)}
-                onDeleteSlot={(index) => onDeleteSlot(day, index)}
-                onCreateSlot={(startMin, endMin) => onCreateSlot(day, startMin, endMin)}
-                onCommitTime={onCommitTime}
-                onSport={onSport}
-                onTitle={onTitle}
-                onCancel={onCancel}
-                onDone={onDone}
-              />
-            );
-          })}
+
+          {active && activeSlot && (
+            <SlotEditorPanel
+              key={`${active.day}-${active.index}`}
+              day={active.day}
+              slot={activeSlot}
+              isNew={active.isNew}
+              onCommitTime={onCommitTime}
+              onSport={onSport}
+              onTitle={onTitle}
+              onDelete={() => onDeleteSlot(active.day, active.index)}
+              onCancel={onCancel}
+              onDone={onDone}
+            />
+          )}
+
+          <WeekGrid
+            weekStart={weekStart}
+            hall={hall}
+            active={active}
+            onToggleDayClosed={onToggleDayClosed}
+            onSelectSlot={onSelectSlot}
+            onDeleteSlot={onDeleteSlot}
+            onCreateSlot={onCreateSlot}
+          />
+
+          {closedDays.length > 0 && (
+            <div className="closed-days-panel">
+              {closedDays.map((day) => (
+                <div className="warn-box" key={day}>
+                  <div className="wtitle">🔒 הודעת סגירה ליום {day}</div>
+                  <textarea
+                    value={hall.dayClosures[day] ?? ''}
+                    placeholder="לדוגמה: האולם סגור לאימונים - התקנת גופי תאורה"
+                    onChange={(e) => onDayClosureNoteChange(day, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

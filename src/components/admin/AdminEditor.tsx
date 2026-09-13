@@ -4,9 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DayName, ScheduleState, Slot } from '@/lib/types';
 import {
-  CAL_END_H,
-  CAL_START_H,
-  findFreeSlot,
   hasOverlap,
   removeSlotAt,
   setSlotAt,
@@ -48,17 +45,6 @@ export default function AdminEditor({ initialData }: { initialData: ScheduleStat
       return withHall(sched, hallId, (h) => removeSlotAt(h, active.day, active.index));
     }
     return sched;
-  }
-
-  function addSlot(hallId: string, day: DayName) {
-    const cleaned = cleanupHallActive(schedule, hallId);
-    const hall = cleaned.halls.find((h) => h.id === hallId)!;
-    const list = hall.days[day] ?? [];
-    const start = findFreeSlot(list, CAL_START_H, CAL_END_H);
-    const newSlot: Slot = { s: toTimeStr(start), e: toTimeStr(start + 60), sport: '🏀', title: '' };
-    setSchedule(withHall(cleaned, hallId, (h) => withDayList(h, day, [...list, newSlot])));
-    setActiveByHall((prev) => ({ ...prev, [hallId]: { day, index: list.length, isNew: true, original: null } }));
-    setDirty(true);
   }
 
   function createSlotFromGrid(hallId: string, day: DayName, startMin: number, endMin: number) {
@@ -277,7 +263,6 @@ export default function AdminEditor({ initialData }: { initialData: ScheduleStat
             onAnnouncementChange={(v) => setAnnouncement(hall.id, v)}
             onToggleDayClosed={(day) => toggleDayClosed(hall.id, day)}
             onDayClosureNoteChange={(day, v) => setDayClosureNote(hall.id, day, v)}
-            onAddSlot={(day) => addSlot(hall.id, day)}
             onSelectSlot={(day, index) => selectSlot(hall.id, day, index)}
             onDeleteSlot={(day, index) => deleteSlot(hall.id, day, index)}
             onCreateSlot={(day, startMin, endMin) => createSlotFromGrid(hall.id, day, startMin, endMin)}
