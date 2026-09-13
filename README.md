@@ -34,7 +34,11 @@ npm run dev
    כלול בתוכנית ה-Hobby). זה יגדיר אוטומטית את `DATABASE_URL` (או `POSTGRES_URL`)
    בפרויקט.
 3. **Settings → Environment Variables**: הוסיפו `ADMIN_PIN` ו-`SESSION_SECRET`.
-4. פריסה מחדש (Redeploy) כדי שהמשתנים ייכנסו לתוקף.
+4. **Storage → Create Database → Blob**, עם **Access: Public** (חשוב — לא Private!),
+   ובחיבור לפרויקט תנו לו את ה-**Prefix** `IMAGES` (כך שהמשתנה שנוצר יהיה
+   `IMAGES_READ_WRITE_TOKEN`). זה משמש להעלאת תמונת הפוסטר לצורך כפתור
+   "פרסם בוואטסאפ".
+5. פריסה מחדש (Redeploy) כדי שהמשתנים ייכנסו לתוקף.
 
 ## פיתוח נוסף
 

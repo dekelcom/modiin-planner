@@ -191,7 +191,7 @@ function PosterBlock({ state, nameLine, range }: { state: ScheduleState; nameLin
 
   async function shareToWhatsapp() {
     setBusy(true);
-    setShareMsg('');
+    setShareMsg('מכין תמונה ומעלה…');
     try {
       const canvas = await renderCanvas();
       if (!canvas) throw new Error('no-canvas');
@@ -199,27 +199,23 @@ function PosterBlock({ state, nameLine, range }: { state: ScheduleState; nameLin
 
       const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
       if (!blob) throw new Error('no-blob');
-      const file = new File([blob], 'לוח-פעילות.jpg', { type: 'image/jpeg' });
-      const caption = `📋 לוח פעילות אולמות – ${nameLine} | ${range}`;
 
-      const nav = navigator as Navigator & {
-        canShare?: (data?: ShareData) => boolean;
-        share?: (data: ShareData) => Promise<void>;
-      };
+      const formData = new FormData();
+      formData.append('file', blob, 'poster.jpg');
+      const res = await fetch('/api/poster-image', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'upload-failed');
+      }
+      const { url } = (await res.json()) as { url: string };
 
-      if (nav.canShare && nav.canShare({ files: [file] }) && nav.share) {
-        await nav.share({ files: [file], title: 'לוח פעילות אולמות', text: caption });
-      } else {
-        // This browser can't attach a file to a share sheet — open WhatsApp
-        // with the caption text ready, and leave the image below so it can
-        // be saved and attached to the message by hand.
-        window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, '_blank', 'noopener,noreferrer');
-        setShareMsg('הדפדפן הזה לא תומך בצירוף תמונה ישירות — פתחנו את וואטסאפ עם הכיתוב, והתמונה מוכנה למטה לשמירה ולצירוף ידני.');
-      }
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        setShareMsg('השיתוף לא הצליח — אפשר להשתמש ב"הורדת התמונה" ולשתף ידנית.');
-      }
+      const caption = `📋 לוח פעילות אולמות – ${nameLine} | ${range}\n${url}`;
+      // Use the same wa.me message flow everywhere — no attempt to attach
+      // the file directly, just the image link pasted into the text.
+      window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`, '_blank', 'noopener,noreferrer');
+      setShareMsg('נפתח וואטסאפ עם ההודעה והקישור לתמונה — אפשר לבחור קבוצה ולשלוח.');
+    } catch {
+      setShareMsg('השיתוף לא הצליח — אפשר להשתמש ב"הצג תמונה לשמירה" ולשתף ידנית.');
     } finally {
       setBusy(false);
     }
